@@ -12,6 +12,7 @@ import { ShoppingCart, Send, Package, AlertCircle, CheckCircle2 } from "lucide-r
 import { format } from "date-fns";
 import FiltrosPedidos from "../components/filtros/FiltrosPedidos";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { enviarEmailSolicitacaoAlteracao, obterEmailsPorPermissao } from "@/utils/emailNotifications";
 
 export default function PainelVendedor() {
   const [filtros, setFiltros] = useState({});
@@ -35,13 +36,23 @@ export default function PainelVendedor() {
   const solicitarMutation = useMutation({
     mutationFn: async (dados) => {
       // Criar a solicitação
-      await base44.entities.SolicitacaoFaturamento.create(dados);
+      const solicitacaoCriada = await base44.entities.SolicitacaoFaturamento.create({
+        ...dados,
+        email_solicitante: user?.email
+      });
       
       // Atualizar o volume_restante do pedido imediatamente
       const novoVolumeRestante = dados.volume_restante_atual - dados.volume_solicitado;
       await base44.entities.Pedido.update(dados.pedido_id, {
         volume_restante: novoVolumeRestante,
         status: novoVolumeRestante <= 0 ? 'faturado' : 'parcialmente_faturado'
+      });
+
+      const destinatarios = await obterEmailsPorPermissao(['faturamento', 'gerente', 'admin']);
+      await enviarEmailSolicitacaoAlteracao({
+        solicitacao: solicitacaoCriada,
+        solicitanteEmail: user?.email,
+        destinatarios
       });
     },
     onSuccess: () => {
