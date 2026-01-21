@@ -12,6 +12,7 @@ import { ShoppingCart, Send, Package, AlertCircle, CheckCircle2, User } from "lu
 import { format } from "date-fns";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { enviarEmailSolicitacaoAlteracao, obterEmailsPorPermissao } from "@/utils/emailNotifications";
 
 export default function MeusPedidos() {
   const [filtros, setFiltros] = useState({});
@@ -34,12 +35,22 @@ export default function MeusPedidos() {
 
   const solicitarMutation = useMutation({
     mutationFn: async (dados) => {
-      await base44.entities.SolicitacaoFaturamento.create(dados);
+      const solicitacaoCriada = await base44.entities.SolicitacaoFaturamento.create({
+        ...dados,
+        email_solicitante: user?.email
+      });
       
       const novoVolumeRestante = dados.volume_restante_atual - dados.volume_solicitado;
       await base44.entities.Pedido.update(dados.pedido_id, {
         volume_restante: novoVolumeRestante,
         status: novoVolumeRestante <= 0 ? 'faturado' : 'parcialmente_faturado'
+      });
+
+      const destinatarios = await obterEmailsPorPermissao(['faturamento', 'gerente', 'admin']);
+      await enviarEmailSolicitacaoAlteracao({
+        solicitacao: solicitacaoCriada,
+        solicitanteEmail: user?.email,
+        destinatarios
       });
     },
     onSuccess: () => {

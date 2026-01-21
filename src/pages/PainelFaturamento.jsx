@@ -11,6 +11,7 @@ import { ClipboardCheck, CheckCircle2, XCircle, Package, AlertTriangle, AlertCir
 import { format } from "date-fns";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { enviarEmailBloqueioPedido } from "@/utils/emailNotifications";
 
 export default function PainelFaturamento() {
   const [solicitacaoSelecionada, setSolicitacaoSelecionada] = useState(null);
@@ -43,6 +44,7 @@ export default function PainelFaturamento() {
           observacoes: observacoes || solicitacao.observacoes
         });
       } else if (acao === 'rejeitar') {
+        const observacoesAtualizadas = observacoes || solicitacao.observacoes;
         // Ao rejeitar, devolver o volume ao pedido
         const pedido = await base44.entities.Pedido.filter({ id: solicitacao.pedido_id });
         if (pedido.length > 0) {
@@ -57,7 +59,13 @@ export default function PainelFaturamento() {
         
         await base44.entities.SolicitacaoFaturamento.update(solicitacao.id, {
           status: 'rejeitado',
-          observacoes: observacoes || solicitacao.observacoes
+          observacoes: observacoesAtualizadas
+        });
+
+        await enviarEmailBloqueioPedido({
+          solicitacao,
+          observacoes: observacoesAtualizadas,
+          destinatario: solicitacao.email_solicitante || solicitacao.created_by
         });
       } else if (acao === 'faturar') {
         // Ao faturar, só registra no histórico (volume já foi descontado na aprovação)
